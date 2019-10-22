@@ -54,7 +54,7 @@ map f = Chance . Map.mapKeysWith (+) f . chance
 scale :: forall a. Double -> Chance a -> Chance a
 scale x = Chance . fmap (*x) . chance
 
-combine :: (Ord a, Functor f, Foldable f) => f (Chance a) -> Chance a
+combine :: Ord a => [Chance a] -> Chance a
 combine = let f = Map.unionsWith (+) in Chance . f . fmap chance
 
 bind :: forall a b. (Ord a, Ord b) => (a -> [b]) -> Chance a -> Chance b
