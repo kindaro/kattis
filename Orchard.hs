@@ -61,11 +61,11 @@ bind :: forall a b. (Ord a, Ord b) => (a -> [b]) -> Chance a -> Chance b
 bind f = combine . fmap expand . Map.toList . chance
     where expand (x, w) = (scale w . fromList . f) x
 
-data State = Victory | Loss | Continue [Integer]  -- Invariant: length = 5.
+data State = Victory | Loss | Continue [Integer] Integer
     deriving (Show, Eq, Ord)
 
 parseInput :: String -> State
-parseInput = Continue . fmap read . words
+parseInput xs = let ys = (fmap read . words) xs in Continue (init ys) (last ys)
 
 main :: IO ()
 main = do
@@ -80,20 +80,21 @@ play :: Chance State -> Chance State
 play = bind step
 
 enough :: Chance State -> Chance State -> Bool
-enough _ u = metric (getChance u Victory + getChance u Loss) 1 < (1 / 10^(6 :: Int))
+enough u v = metric (getChance u Victory + getChance u Loss) 1 < (1 / 10^(6 :: Int))
     where metric x y = abs (x - y)
 
 step :: State -> [State]
-step Loss = [Loss]
+step Loss    = [Loss]
 step Victory = [Victory]
-step (Continue [0, 0, 0, 0, _]) = [Victory]
-step (Continue [_, _, _, _, 0]) = [Loss]
-step (Continue [r, g, b, y, s]) =
-  let trees = [r, g, b, y]
-      (maxTree, maxTreeIndex) = List.maximumBy (compare `on` fst) (trees `zip` [0..])
-        -- Safe: `trees` are of length 4 by construction.
-  in  fmap Continue $
-        [ [r, g, b, y, s - 1]
-        , replaceAt maxTreeIndex (maxTree - 1) trees ++ [s]
-        ] ++ fmap ((++ [s]) . flip possiblyDecreaseAt trees) [0..3]
-step x = error $ "Fatal error: wrong game state: " ++ show x
+step (Continue [ ] 0) = error $ "Fatal error: Trees and raven are both zero."
+step (Continue [ ] _) = [Victory]
+step (Continue       (_:_) 0    ) = [Loss]
+step (Continue trees@(_:_) raven) =
+  let (maxTree, maxTreeIndex) = List.maximumBy (compare `on` fst) (trees `zip` [0..])
+        -- Safe: `trees` are of non-zero length by pattern match.
+      trees' = fmap List.sort
+             $ replaceAt maxTreeIndex (maxTree - 1) trees
+                            -- Safe: `maxTreeIndex` is within range of `trees` by construction.
+             : fmap (\x -> possiblyDecreaseAt x trees) [0 .. length trees - 1]
+                            -- Safe: `x` is within range of `trees` by construction.
+  in  Continue trees (raven - 1): fmap (flip Continue raven . filter (>0)) trees'
